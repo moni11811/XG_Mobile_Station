@@ -50,7 +50,6 @@ function Enable-eGPU {
     Start-Sleep -Seconds 2
     Get-PnpDevice -FriendlyName "*NVIDIA*" | Enable-PnpDevice -Confirm:$false
     Start-Sleep -Seconds 2
-    Restart-Service -Name $AudioServiceName -Force
     Restart-Process explorer
     Update-TrayIcon
     Show-Notification "XG Mobile" "eGPU Enabled." "Info"
@@ -63,7 +62,6 @@ function Disable-eGPU {
     Start-Sleep -Seconds 2
     Get-PnpDevice -FriendlyName "*NVIDIA*" | Disable-PnpDevice -Confirm:$false
     Start-Sleep -Seconds 2
-    Restart-Service -Name $AudioServiceName -Force
     Restart-Process explorer
     Update-TrayIcon
     Show-Notification "XG Mobile" "eGPU Disabled. Safe to unplug." "Info"
