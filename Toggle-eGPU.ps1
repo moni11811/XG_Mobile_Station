@@ -29,9 +29,35 @@ function Show-Notification($title, $message, $type="Info") {
     $notifyIcon.ShowBalloonTip(3000)
 }
 
+function Get-XgMobileConnectionStatus {
+    try {
+        $result = Invoke-CimMethod -InputObject (Get-CimInstance -Namespace root/wmi -ClassName AsusAtkWmi_WMNB) `
+            -MethodName DSTS -Arguments @{Device_ID=0x00090019}
+        $status = [uint32]$result.ReturnValue
+        $isValid = ($status -band 0x00010000) -ne 0
+        $isConnected = ($status -band 0x00000001) -ne 0
+        if ($isValid) {
+            return $isConnected
+        }
+    } catch {
+    }
+
+    $device = Get-PnpDevice -InstanceId "*$XgMobileDeviceID*" -ErrorAction SilentlyContinue
+    return $null -ne $device
+}
+
+function Get-eGPUDeviceStatus {
+    $devices = Get-PnpDevice -Class Display -FriendlyName "*NVIDIA*" -ErrorAction SilentlyContinue |
+        Where-Object { $_.Status -eq "OK" }
+    return $null -ne $devices
+}
+
 function Get-eGPUStatus {
-    $device = Get-PnpDevice -FriendlyName "*NVIDIA*" -ErrorAction SilentlyContinue
-    return $device.Status -eq "OK"
+    if (-not (Get-XgMobileConnectionStatus)) {
+        return $false
+    }
+
+    return Get-eGPUDeviceStatus
 }
 
 function Toggle-eGPU {
@@ -76,7 +102,13 @@ function Restart-Process($procName) {
 }
 
 function Update-TrayIcon {
-    if (Get-eGPUStatus) {
+    $isConnected = Get-XgMobileConnectionStatus
+    $isEnabled = $false
+    if ($isConnected) {
+        $isEnabled = Get-eGPUDeviceStatus
+    }
+
+    if ($isConnected) {
         $customIconPath = "C:\Program Files\ASUS\ARMOURY CRATE SE Service\GPUSwitchPlugin\AC.png"
         
         # Convert PNG to Icon at runtime
@@ -89,13 +121,17 @@ function Update-TrayIcon {
             $notifyIcon.Icon = $iconConnected
         }
 
-        $notifyIcon.Text = "XG Mobile eGPU Connected"
-        $menuEnable.Enabled = $false
-        $menuDisable.Enabled = $true
+        if ($isEnabled) {
+            $notifyIcon.Text = "XG Mobile eGPU Connected"
+        } else {
+            $notifyIcon.Text = "XG Mobile eGPU Connected (GPU Disabled)"
+        }
+        $menuEnable.Enabled = -not $isEnabled
+        $menuDisable.Enabled = $isEnabled
     } else {
         $notifyIcon.Icon = $iconDisconnected
         $notifyIcon.Text = "XG Mobile eGPU Disconnected"
-        $menuEnable.Enabled = $true
+        $menuEnable.Enabled = $false
         $menuDisable.Enabled = $false
     }
 }
